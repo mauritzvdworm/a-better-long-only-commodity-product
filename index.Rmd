@@ -1218,7 +1218,7 @@ pic
 ```
 
 
-## Backwardation Mast - Risk and Return Statistics {data-background="img/BlueBackgroundWithOrange.png"}
+## Backwardation Mask - Risk and Return Statistics {data-background="img/BlueBackgroundWithOrange.png"}
 
 ```{r}
 
@@ -1291,7 +1291,7 @@ kable(tbl) %>%
 
 ```
 
-## Long Backwardated Commodities - Time Windown Report {data-background="img/BlueBackgroundWithOrange.png"}
+## Backwardation Mask - Time Windown Report {data-background="img/BlueBackgroundWithOrange.png"}
 
 Time Window Analysis:
 
@@ -1339,14 +1339,14 @@ kable(tbl) %>%
 
 ## Basic Idea {data-background="img/BlueBackgroundWithOrange.png"}
 
-Here we combine the two ideas 
+Here we combine the three ideas 
 
 - Take long exposure in backwardated commodities 
 - Explore two parts of the curve
 - Add 5 different roll schedules
 
 
-## Cusotm Long-Only Portfolio - Equity Curve {data-background="img/BlueBackgroundWithOrange.png"}
+## Custom Long-Only Portfolio - Equity Curve {data-background="img/BlueBackgroundWithOrange.png"}
 
 ```{r}
 
