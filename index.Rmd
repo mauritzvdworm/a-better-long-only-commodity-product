@@ -1217,6 +1217,92 @@ pic
 
 ```
 
+## Backwardation Mask - Weight Evolution {data-background="img/BlueBackgroundWithOrange.png"}
+
+```{r}
+
+weight_evolution <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/gsci_weight_evolution.csv"))
+
+weight_evolution[, date := as.Date(date)]
+
+ggplot(weight_evolution[comdty %in% c("CL", "CO")], aes(x = date, y=upweight * side)) +
+  geom_line(aes(color = comdty)) +
+  scale_x_date(breaks = pretty_breaks(n=15)) +
+  scale_y_continuous(breaks = pretty_breaks(n=10)) +
+  ggtitle("CL and CO allocation over time") +
+  ylab("Weight Allocation (%)") +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+
+```
+
+
+
+## Backwardation Mask - Number of Commodities {data-background="img/BlueBackgroundWithOrange.png"}
+
+```{r}
+
+weight_evolution <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/gsci_weight_evolution.csv"))
+
+weight_evolution[, date := as.Date(date)]
+weight_evolution[, month := month(date)]
+weight_evolution[, year := year(date)]
+
+tot_com <- weight_evolution[, .N, by = .(year, month)]
+tot_com <- tot_com[, date := paste(year, month, 1, sep = "-")]
+tot_com[, date := as.Date(date)]
+setnames(tot_com, "N", "Tot")
+
+weight_evolution <- weight_evolution[side != 0]
+plotdata <- weight_evolution[, .N, by = .(year, month)]
+plotdata <- plotdata[, date := paste(year, month, 1, sep = "-")]
+plotdata[, date := as.Date(date)]
+
+plotdata <- merge(plotdata, tot_com, on = c("year", "month", 'date'))
+plotdata <- plotdata[,.(date, N, Tot)]
+plotdata <- melt(plotdata, id.vars = "date")
+
+ggplot(plotdata, aes(x = date, y=value, group = variable)) +
+  geom_line(aes(color = variable)) +
+  scale_x_date(breaks = pretty_breaks(n=15)) +
+  scale_y_continuous(breaks = pretty_breaks(n=10)) +
+  ggtitle("Number of commodities in portfolio over time") +
+  ylab("Number") +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+
+```
+
+
+
 
 ## Backwardation Mask - Risk and Return Statistics {data-background="img/BlueBackgroundWithOrange.png"}
 
