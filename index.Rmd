@@ -148,6 +148,7 @@ ggplot(plotdata, aes(x = comdty, y=weight)) +
   ylab("Weight") + 
   geom_text(aes(label = weight), nudge_y = 0.75) +
   ggtitle("GSCI commodities and weights for 2020") +
+  scale_fill_brewer(palette="Dark2") +
   theme(
     plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
     panel.background = element_rect(fill = "white"),
@@ -1134,6 +1135,7 @@ ggplot(plotdata, aes(x = per, y = `Annualised Return`)) +
   xlab("Percentage of time spent in backwardation") +
   ggtitle("Annualised Return vs Percentage of time spent in backwardation (After 1990-01-01)") +
   scale_x_continuous(breaks = pretty_breaks(n=10)) +
+  scale_color_brewer(palette="Dark2") +
   theme(
     plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
     panel.background = element_rect(fill = "white"),
