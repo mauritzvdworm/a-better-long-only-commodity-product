@@ -1285,6 +1285,7 @@ ggplot(plotdata, aes(x = date, y=value, group = variable)) +
   scale_x_date(breaks = pretty_breaks(n=15)) +
   scale_y_continuous(breaks = pretty_breaks(n=10)) +
   ggtitle("Number of commodities in portfolio over time") +
+  scale_color_brewer(palette="Dark2") +
   ylab("Number") +
   theme(
     plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
@@ -2017,11 +2018,11 @@ portfolioData <- portfolioData[,.(date, year, month, Diversified)]
 portfolioData[, Diversified := cumprod(Diversified + 1)]
 portfolioData[, Diversified := Diversified/portfolioData[1, Diversified]]
   
-previousdata <- merge(trendmorecommodities[, .(date, Trend = normalised)], backtestPnL[,.(date, `GSCI backtest` = normalised)], by = "date")
+previousdata <- merge(trendmorecommodities[, .(date, Trend = normalised)], backtestPnL[,.(date, `GSCI backtest` = normalised)], by = "date", all.y = TRUE)
 
-previousdata <- merge(previousdata, trend_GSCI_commodities[, .(date, `Trend GSCI commodities` = normalised)], by = "date")
+previousdata <- merge(previousdata, trend_GSCI_commodities[, .(date, `Trend GSCI commodities` = normalised)], by = "date", all.x = TRUE)
 
-previousdata <- merge(previousdata, backwardationPnL[, .(date, Backwardation = normalised)], by = "date")
+previousdata <- merge(previousdata, backwardationPnL[, .(date, Backwardation = normalised)], by = "date", all.y = TRUE)
 
 previousdata <- merge(previousdata, backtestPnL[, .(date, Custom = normalised)], by = "date")
 
