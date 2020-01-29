@@ -1195,6 +1195,7 @@ pic <- ggplot(plotdata, aes(x=date, y=normalised)) +
   ggtitle("Value of $1 invested at inception") +
   scale_x_date(breaks = pretty_breaks(n=15)) +
   scale_y_continuous(breaks = pretty_breaks(n=10)) +
+  scale_color_brewer(palette="Dark2") +
   theme(
     plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
     panel.background = element_rect(fill = "white"),
@@ -1233,6 +1234,7 @@ ggplot(weight_evolution[comdty %in% c("CL", "CO")], aes(x = date, y=upweight * s
   scale_y_continuous(breaks = pretty_breaks(n=10)) +
   ggtitle("CL and CO allocation over time") +
   ylab("Weight Allocation (%)") +
+  scale_color_brewer(palette="Dark2") +
   theme(
     plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
     panel.background = element_rect(fill = "white"),
