@@ -1,0 +1,2349 @@
+---
+title: "A Better Long-Only Commodity Product"
+author: "Dr Mauritz van den Worm, PhD"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  revealjs::revealjs_presentation:
+    reveal_options:
+      minScale: 1.0
+      maxScale: 1.0
+      slideNumber: true
+    includes:
+      in_header: addlogo.html
+    theme: simple
+    highlight: pygments
+    center: true
+    mathjax: "https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
+    self_contained: false
+    reveal_plugins: ["menu"]
+    css: custom.css
+---
+
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+
+library(ggplot2)
+library(plotly)
+library(data.table)
+library(readr)
+library(scales)
+library(kableExtra)
+library(PortfolioAnalytics)
+library(htmlwidgets)
+library(GGally)
+
+
+```
+
+
+# Overview {data-background="img/background_mtns_1.png"}
+
+## Rough Outline {data-background="img/BlueBackgroundWithOrange.png"}
+
+- Introduce the GSCI Index as long-only proxy
+- Define backwardation and contango
+- Curve impact of roll ajusted price series
+- Reconstruct long-only Index
+- Performance attribution during backwardation and contango
+- Improving the long-only Index
+- Shameless propaganda
+
+
+# GSCI Index {data-background="img/background_mtns_1.png"}
+
+## BSCI Evolution {data-background="img/BlueBackgroundWithOrange.png"}
+
+```{r}
+
+gsciData <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/gsciData.csv"))
+
+setnames(gsciData, "px_last", "GSCI")
+
+pic <- ggplot(gsciData, aes(x=date, y=GSCI)) +
+  geom_line() +
+  xlab("") +
+  scale_x_date(breaks = pretty_breaks(n=15)) +
+  scale_y_continuous(breaks = pretty_breaks(n=10)) +
+  geom_hline(yintercept = gsciData[date == max(date), GSCI], color = "firebrick") +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+
+#ggplotly(pic)
+
+pic
+
+```
+
+
+## GSCI Weights by sector {data-background="img/BlueBackgroundWithOrange.png"}
+
+
+
+```{r}
+
+gsci_weights <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/gsciWeights.csv"))
+
+
+plotdata <- gsci_weights[weight > 0, .(weight = sum(weight)), by = sector][order(weight)]
+
+plotdata$sector <- factor(plotdata$sector, levels = plotdata[, unique(sector)])
+
+ggplot(plotdata, aes(x = sector, y=weight)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  scale_y_continuous(breaks = pretty_breaks(n = 10)) +
+  xlab("") +
+  ylab("Weight") + 
+  geom_text(aes(label = weight), nudge_y = 1.75) +
+  ggtitle("GSCI sectors and weights for 2020") +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+
+
+```
+
+
+## GSCI Weights by commodity {data-background="img/BlueBackgroundWithOrange.png"}
+
+```{r}
+
+plotdata <- gsci_weights[weight > 0][order(weight)]
+plotdata$comdty <- factor(plotdata$comdty, levels = plotdata[, unique(comdty)])
+
+ggplot(plotdata, aes(x = comdty, y=weight)) +
+  geom_bar(stat = "identity", aes(fill = sector)) +
+  coord_flip() +
+  scale_y_continuous(breaks = pretty_breaks(n = 10)) +
+  xlab("") +
+  ylab("Weight") + 
+  geom_text(aes(label = weight), nudge_y = 0.75) +
+  ggtitle("GSCI commodities and weights for 2020") +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+
+```
+
+## GSCI Commodity Correlations {data-background="img/BlueBackgroundWithOrange.png"}
+
+
+```{r}
+
+backwardation_contango <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/backwardation_contango.csv"))
+
+
+start_date <- backwardation_contango[, .(date = min(date)), by = comdty][, max(date)]
+
+corrdata <- backwardation_contango[date >= start_date]
+corrdata <- merge(corrdata, gsci_weights[weight > 0, .(comdty, sector)], on = "comdty")
+corrdata <- corrdata[order(sector, comdty, date)]
+corrdata$comdty <- factor(corrdata$comdty, levels = corrdata[, unique(comdty)])
+
+corrdata <- dcast(corrdata, date ~ comdty, value.var = "Returns", fun.aggregate = mean)
+corrdata[, date := NULL]
+corrdata[, sector := NULL]
+
+corrdata <- cor(corrdata, use = "complete.obs")
+corrdata <- round(corrdata, 2)
+
+
+ggcorr(corrdata, label_alpha = TRUE)
+
+
+```
+
+
+# Curve Shape {data-background="img/background_mtns_1.png"}
+
+## Contango {data-background="img/BlueBackgroundWithOrange.png"}
+
+
+```{r}
+
+curveShape <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/curveSahpe.csv"))
+
+```
+
+```{r}
+
+plotdata <- curveShape[comdty == "C"]
+plotdata <- plotdata[order(expiry)]
+
+pic <- ggplot(plotdata, aes(x=expiry, y=price, group = comdty, text = paste(contract, "<br>", price))) +
+  geom_point() +
+  geom_text(aes(label=price), nudge_y = 2) +
+  geom_line() +
+  ggtitle("Curve in Contango: Corn Futures Curve 2019-06-12") +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+#ggplotly(pic, tooltip="text")
+
+pic
+
+```
+
+## Backwardation {data-background="img/BlueBackgroundWithOrange.png"}
+
+```{r}
+
+plotdata <- curveShape[comdty == "LX"]
+plotdata <- plotdata[order(expiry)]
+
+pic <- ggplot(plotdata, aes(x=expiry, y=price, group = comdty, text = paste(contract, "<br>", price))) +
+  geom_point() +
+  geom_text(aes(label = price), nudge_y =  -10) +
+  geom_line() +
+  ggtitle("Curve in Backwardation: Zinc Futures Curve 2019-06-12") +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+#ggplotly(pic, tooltip="text")
+
+pic
+
+```
+
+
+## The effect of roll yield - Corn {data-background="img/BlueBackgroundWithOrange.png"}
+
+```{r}
+
+rolledPrices <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/rolledPrices.csv"))
+
+```
+
+```{r}
+
+cmdt <- "C"
+  
+plotdata <- rolledPrices[comdty == cmdt, .(date, price, `adj price`)]
+plotdata <- melt(plotdata, id.vars = "date", variable.name = "Price Series", value.name = "Price")
+  
+pic <- ggplot(plotdata, aes(x=date, y=Price)) +
+  geom_line(aes(group = `Price Series`, color = `Price Series`)) +
+  scale_y_continuous(breaks = pretty_breaks(n=10)) +
+  scale_x_date(breaks = pretty_breaks(n=10)) +
+  scale_color_brewer(palette="Dark2") +
+  ggtitle(paste(cmdt, "Adjusted and Normal Price Series")) +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+ggplotly(pic) %>%
+    layout(legend = list(orientation = "h", x = 0.4, y = -0.2))
+
+#pic
+
+```
+
+## The effect of roll yield - Natural Gas {data-background="img/BlueBackgroundWithOrange.png"}
+
+
+```{r}
+
+cmdt <- "NG"
+  
+plotdata <- rolledPrices[comdty == cmdt, .(date, price, `adj price`)]
+plotdata <- melt(plotdata, id.vars = "date", variable.name = "Price Series", value.name = "Price")
+  
+pic <- ggplot(plotdata, aes(x=date, y=Price)) +
+  geom_line(aes(group = `Price Series`, color = `Price Series`)) +
+  scale_y_continuous(breaks = pretty_breaks(n=10)) +
+  scale_x_date(breaks = pretty_breaks(n=10)) +
+  scale_color_brewer(palette="Dark2") +
+  ggtitle(paste(cmdt, "Adjusted and Normal Price Series")) +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+ggplotly(pic) %>%
+    layout(legend = list(orientation = "h", x = 0.4, y = -0.2))
+
+#pic
+
+```
+
+## The effect of roll yield - WTI {data-background="img/BlueBackgroundWithOrange.png"}
+
+
+```{r}
+
+cmdt <- "CL"
+  
+plotdata <- rolledPrices[comdty == cmdt, .(date, price, `adj price`)]
+plotdata <- melt(plotdata, id.vars = "date", variable.name = "Price Series", value.name = "Price")
+  
+pic <- ggplot(plotdata, aes(x=date, y=Price)) +
+  geom_line(aes(group = `Price Series`, color = `Price Series`)) +
+  scale_y_continuous(breaks = pretty_breaks(n=10)) +
+  scale_x_date(breaks = pretty_breaks(n=10)) +
+  scale_color_brewer(palette="Dark2") +
+  ggtitle(paste(cmdt, "Adjusted and Normal Price Series")) +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+ggplotly(pic) %>%
+    layout(legend = list(orientation = "h", x = 0.4, y = -0.2))
+
+#pic
+
+```
+
+
+
+
+
+
+# Index Proxy {data-background="img/background_mtns_1.png"} 
+
+
+```{r}
+
+# define a function that determines the return statistiscs
+
+getStatistics <- function(df){
+  
+  output <- vector(mode = "list", length = 7)
+  
+  df[, year := year(date)]
+  
+  ## RETURN STATISTICS
+  # last month returns
+  lastmonth <- round(df[nrow(df), return] * 100, 2)
+  
+  # year to date returns
+  tempdata <- df[year == max(year)]
+  y2d <- round(tempdata[, prod(return + 1) - 1] * 100, 2)
+  
+  # 3 month return
+  tempdata <- df[(nrow(df)-2):nrow(df)]
+  ROR3month <- round(tempdata[, prod(return + 1) - 1] * 100, 2)
+  
+  # 12 month return
+  if(nrow(df) < 12){
+    ROR12month <- NA
+  }else{
+    tempdata <- df[(nrow(df)-11):nrow(df)]
+    ROR12month <- round(tempdata[, prod(return + 1) - 1] * 100, 2)
+  }
+    
+  # 36 month return
+  if(nrow(df) < 36){
+    ROR36month <- NA
+  }else{
+    tempdata <- df[(nrow(df)-35):nrow(df)]
+    ROR36month <- round(tempdata[, prod(return + 1) - 1] * 100, 2)
+  }
+  
+  
+  # total return
+  totalreturn <- round(df[, prod(return + 1) - 1] * 100, 2)
+  
+  # compound ROR
+  compoundROR <- table.AnnualizedReturns(df[,.(date, return)])
+  compoundROR <- round(compoundROR[1,1] * 100, 2)
+
+  # best month
+  bestmonth <- round(df[, max(return)] * 100, 2)
+  
+  # winning months
+  df[, sign := sign(return)]
+  winningmonths <- round(nrow(df[sign == 1])/nrow(df) * 100, 2)
+  df[, sign := NULL]
+  
+  returnStatistics <- data.table(
+    statistic = c(
+      "Last Month", 
+      "Year To Date",
+      "3 Month ROR", 
+      "12 Month ROR", 
+      "36 Month ROR", 
+      "Total Return", 
+      "Compound ROR", 
+      "Best Month", 
+      "Winning Months (%)"),
+    values = c(
+     lastmonth,
+     y2d,
+     ROR3month,
+     ROR12month,
+     ROR36month,
+     totalreturn,
+     compoundROR,
+     bestmonth,
+     winningmonths
+    )
+  )
+  
+  
+  output[[1]] <- returnStatistics
+  
+  ## RISK STATISTICS
+  # annual std
+  stdev <- table.AnnualizedReturns(df[,.(date, return)])
+  stdev <- round(stdev[2,1] * 100, 2)
+  
+  # max drawdown
+  maxdraw <- round(maxDrawdown(as.xts(df[,.(date, return)])) * 100, 2)
+  
+  # months to recover
+  tempdata <- as.data.table(table.Drawdowns(as.xts(df[, .(date, return)])))
+  monthstorecover <- tempdata[1, Length]
+  
+  # worst month
+  worstmonth <- round(df[return == min(return), return] * 100, 2)
+  
+  # losing months
+  df[, sign := sign(return)]
+  losingmonths <- round(nrow(df[sign == -1])/nrow(df) * 100, 2)
+  df[, sign := NULL]
+  
+  # average losing month
+  averagelosing <- round(df[return < 0, mean(return)] * 100, 2)
+  
+  # loss deviation
+  lossdeviation <- round(df[return <0, sd(return)] * 100, 2)
+  
+  
+  riskStatistics <- data.table(
+    statistic = c(
+      "Annualized Std.Deviation",
+      "Maximum Drawdown", 
+      "Month to Recover",
+      "Worst Month",
+      "Losing Months (%)",
+      "Average Losing Month",
+      "Loss Deviation"
+    ),
+    value = c(
+      stdev,
+      maxdraw,
+      monthstorecover,
+      worstmonth,
+      losingmonths,
+      averagelosing,
+      lossdeviation
+    )
+  )
+  
+  riskStatistics[, value := round(value, 2)]
+  
+  output[[2]] <- riskStatistics
+  
+  ## RISK/REWARD STATISTICS
+  sharpe <- SharpeRatio(df[, .(date, return)], annualize = TRUE, FUN = "StdDev")[1]
+  sortino <- compoundROR/(lossdeviation * sqrt(12))
+  omega <- OmegaSharpeRatio(df[,.(date, return)], annualize = TRUE)
+  skw <- skewness(as.xts(df[,.(date, return)]))
+  krt <- kurtosis(as.xts(df[,.(date, return)]), method = "fisher")
+  
+  riskRewardStatistics <- data.table(
+    statistic = c(
+      "Sharpe Ratio", 
+      "Sortino Ratio",
+      "Omega Ratio",
+      "Skewness", 
+      "Kurtosis"
+    ),
+    value = c(
+      sharpe,
+      sortino,
+      omega,
+      skw,
+      krt
+    )
+  )
+  
+  riskRewardStatistics[, value := round(value, 2)]
+  
+  output[[3]] <- riskRewardStatistics
+  
+  ## RETURN REPORT
+  # 1 month
+  rr1month <- df[, .(Period = "1 Month",
+         Best = round(max(return)*100,2), 
+         Worst = round(min(return)*100,2), 
+         Average = round(mean(return)*100,2), 
+         Median = round(median(return)*100,2), 
+         Last = lastmonth, 
+         `Winning (%)` = winningmonths, 
+         `Avg. Pos. Period` = round(df[return > 0, mean(return)] * 100, 2), 
+         `Avg. Neg. Period` = round(df[return < 0, mean(return)] * 100, 2),
+         `# Of Periods` = nrow(df))]
+  
+  # 3 month
+  tempdata <- df[, .(date, return)]
+  rollingreturn <- rollapply(tempdata[, return+1], 3, FUN = prod) - 1
+  
+  rr3month <- data.table(
+    Period = "3 Month",
+    Best = round(max(rollingreturn) * 100, 2), 
+    Worst = round(min(rollingreturn) * 100, 2), 
+    Average = round(mean(rollingreturn) * 100, 2), 
+    Median = round(median(rollingreturn) * 100, 2), 
+    Last = round(rollingreturn[length(rollingreturn)]*100,2),
+    `Winning (%)` = round(length(rollingreturn[rollingreturn > 0])/length(rollingreturn)*100,2),
+    `Avg. Pos. Period` = round(mean(rollingreturn[rollingreturn > 0])*100, 2),
+    `Avg. Neg. Period` = round(mean(rollingreturn[rollingreturn < 0])*100, 2),
+    `# Of Periods` = length(rollingreturn)
+  )
+  
+  # 6 month
+  tempdata <- df[, .(date, return)]
+  rollingreturn <- rollapply(tempdata[, return+1], 6, FUN = prod) - 1
+  
+  if(length(rollingreturn) == 0){
+    rr6month <- data.table(
+      Period = "6 Month",
+      Best = NA, 
+      Worst = NA, 
+      Average = NA, 
+      Median = NA, 
+      Last = NA,
+      `Winning (%)` = NA,
+      `Avg. Pos. Period` = NA,
+      `Avg. Neg. Period` = NA,
+      `# Of Periods` = NA
+    )
+  }else{
+    rr6month <- data.table(
+      Period = "6 Month",
+      Best = round(max(rollingreturn) * 100, 2), 
+      Worst = round(min(rollingreturn) * 100, 2), 
+      Average = round(mean(rollingreturn) * 100, 2), 
+      Median = round(median(rollingreturn) * 100, 2), 
+      Last = round(rollingreturn[length(rollingreturn)]*100,2),
+      `Winning (%)` = round(length(rollingreturn[rollingreturn > 0])/length(rollingreturn)*100,2),
+      `Avg. Pos. Period` = round(mean(rollingreturn[rollingreturn > 0])*100, 2),
+      `Avg. Neg. Period` = round(mean(rollingreturn[rollingreturn < 0])*100, 2),
+      `# Of Periods` = length(rollingreturn)
+    )  
+  }
+  
+  
+  # 1 year 
+  tempdata <- df[, .(date, return)]
+  rollingreturn <- rollapply(tempdata[, return+1], 12, FUN = prod) - 1
+  
+  if(length(rollingreturn) == 0){
+    rr1year <- data.table(
+      Period = "1 Year",
+      Best = NA, 
+      Worst = NA, 
+      Average = NA, 
+      Median = NA, 
+      Last = NA,
+      `Winning (%)` = NA,
+      `Avg. Pos. Period` = NA,
+      `Avg. Neg. Period` = NA,
+      `# Of Periods` = NA
+    )
+  }else{
+    rr1year <- data.table(
+      Period = "1 Year",
+      Best = round(max(rollingreturn) * 100, 2), 
+      Worst = round(min(rollingreturn) * 100, 2), 
+      Average = round(mean(rollingreturn) * 100, 2), 
+      Median = round(median(rollingreturn) * 100, 2), 
+      Last = round(rollingreturn[length(rollingreturn)]*100,2),
+      `Winning (%)` = round(length(rollingreturn[rollingreturn > 0])/length(rollingreturn)*100,2),
+      `Avg. Pos. Period` = round(mean(rollingreturn[rollingreturn > 0])*100, 2),
+      `Avg. Neg. Period` = round(mean(rollingreturn[rollingreturn < 0])*100, 2),
+      `# Of Periods` = length(rollingreturn)
+    )
+  }
+  
+  
+  
+  # 2 year 
+  tempdata <- df[, .(date, return)]
+  rollingreturn <- rollapply(tempdata[, return+1], 12 * 2, FUN = prod) - 1
+  
+  if(length(rollingreturn) == 0){
+    rr2year <- data.table(
+      Period = "2 Year",
+      Best = NA, 
+      Worst = NA, 
+      Average = NA, 
+      Median = NA, 
+      Last = NA,
+      `Winning (%)` = NA,
+      `Avg. Pos. Period` = NA,
+      `Avg. Neg. Period` = NA,
+      `# Of Periods` = NA
+    )
+  }else{
+    rr2year <- data.table(
+      Period = "2 Year",
+      Best = round(max(rollingreturn) * 100, 2), 
+      Worst = round(min(rollingreturn) * 100, 2), 
+      Average = round(mean(rollingreturn) * 100, 2), 
+      Median = round(median(rollingreturn) * 100, 2), 
+      Last = round(rollingreturn[length(rollingreturn)]*100,2),
+      `Winning (%)` = round(length(rollingreturn[rollingreturn > 0])/length(rollingreturn)*100,2),
+      `Avg. Pos. Period` = round(mean(rollingreturn[rollingreturn > 0])*100, 2),
+      `Avg. Neg. Period` = round(mean(rollingreturn[rollingreturn < 0])*100, 2),
+      `# Of Periods` = length(rollingreturn)
+    )
+  }
+  
+  # 3 year 
+  tempdata <- df[, .(date, return)]
+  rollingreturn <- rollapply(tempdata[, return+1], 12 * 3, FUN = prod) - 1
+  
+  if(length(rollingreturn) == 0){
+    rr3year <- data.table(
+      Period = "3 Year",
+      Best = NA, 
+      Worst = NA, 
+      Average = NA, 
+      Median = NA, 
+      Last = NA,
+      `Winning (%)` = NA,
+      `Avg. Pos. Period` = NA,
+      `Avg. Neg. Period` = NA,
+      `# Of Periods` = NA
+    )
+  }else{
+    rr3year <- data.table(
+      Period = "3 Year",
+      Best = round(max(rollingreturn) * 100, 2), 
+      Worst = round(min(rollingreturn) * 100, 2), 
+      Average = round(mean(rollingreturn) * 100, 2), 
+      Median = round(median(rollingreturn) * 100, 2), 
+      Last = round(rollingreturn[length(rollingreturn)]*100,2),
+      `Winning (%)` = round(length(rollingreturn[rollingreturn > 0])/length(rollingreturn)*100,2),
+      `Avg. Pos. Period` = round(mean(rollingreturn[rollingreturn > 0])*100, 2),
+      `Avg. Neg. Period` = round(mean(rollingreturn[rollingreturn < 0])*100, 2),
+      `# Of Periods` = length(rollingreturn)
+    )
+  }
+  
+  # 5 year 
+  tempdata <- df[, .(date, return)]
+  rollingreturn <- rollapply(tempdata[, return+1], 12 * 5, FUN = prod) - 1
+  
+  if(length(rollingreturn) == 0){
+    rr5year <- data.table(
+      Period = "5 Year",
+      Best = NA, 
+      Worst = NA, 
+      Average = NA, 
+      Median = NA, 
+      Last = NA,
+      `Winning (%)` = NA,
+      `Avg. Pos. Period` = NA,
+      `Avg. Neg. Period` = NA,
+      `# Of Periods` = NA
+    )
+  }else{
+    rr5year <- data.table(
+      Period = "5 Year",
+      Best = round(max(rollingreturn) * 100, 2), 
+      Worst = round(min(rollingreturn) * 100, 2), 
+      Average = round(mean(rollingreturn) * 100, 2), 
+      Median = round(median(rollingreturn) * 100, 2), 
+      Last = round(rollingreturn[length(rollingreturn)]*100,2),
+      `Winning (%)` = round(length(rollingreturn[rollingreturn > 0])/length(rollingreturn)*100,2),
+      `Avg. Pos. Period` = round(mean(rollingreturn[rollingreturn > 0])*100, 2),
+      `Avg. Neg. Period` = round(mean(rollingreturn[rollingreturn < 0])*100, 2),
+      `# Of Periods` = length(rollingreturn)
+    )
+  }
+  
+  returnReport <- rbind(
+    rr1month,
+    rr3month,
+    rr6month,
+    rr1year,
+    rr2year,
+    rr3year,
+    rr5year
+  )
+  
+  
+  output[[4]] <- returnReport
+  
+  ## DRAWDOWN REPORT
+  drawdownReport <- table.Drawdowns(as.xts(df[, .(date, return)]))
+  drawdownReport <- as.data.table(drawdownReport)
+  drawdownReport[, Depth := round(Depth * 100,2)]
+  drawdownReport[, Number := 1:nrow(drawdownReport)]
+  drawdownReport <- drawdownReport[, .(Number, `Depth (%)` = Depth, `Length (Months)` = Length, `Recovery (Months)` = Recovery, Start = From, End = To)]
+  
+  
+  output[[5]] <- drawdownReport
+  
+  ## TIME WINDOW ANALYSIS
+  returnReport$Period <- factor(returnReport$Period, levels = returnReport$Period)
+  tempdata <- melt(returnReport, id.vars = "Period")
+  
+  timeWindowAnalysis <- dcast(tempdata, variable ~ Period, value.var = "value")
+ 
+   
+  output[[6]] <- timeWindowAnalysis
+  
+  output
+}
+
+
+```
+
+## Index Proxy vs GSCI {data-background="img/BlueBackgroundWithOrange.png"}
+
+```{r}
+
+backtestPnL <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/gsci_backtestPnL.csv"))
+
+gsciData[, normalise := GSCI/gsciData[1, GSCI]]
+
+
+plotdata <- merge(backtestPnL[, .(date, backtest = normalised)], gsciData[, .(date, GSCI = normalise)], by = "date")
+plotdata <- melt(plotdata, id.vars = "date", variable.name = "Timeseries")
+
+pic <- ggplot(plotdata, aes(x=date, y=value, group=Timeseries)) +
+  geom_line(aes(color = Timeseries)) +
+  scale_color_brewer(palette="Dark2") +
+  xlab("") +
+  ylab("Performance") +
+  ggtitle("Value of $1 invested at inception") +
+  scale_x_date(breaks = pretty_breaks(n=15)) +
+  scale_y_continuous(breaks = pretty_breaks(n=10)) +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+
+#ggplotly(pic) %>%
+#    layout(legend = list(orientation = "h", x = 0.4, y = -0.2))
+
+pic
+
+```
+
+
+## Index Proxy - Risk and Return Statistics {data-background="img/BlueBackgroundWithOrange.png"}
+
+```{r}
+
+backtestPnL[, year := year(date)]
+backtestPnL[, month := month(date)]
+backtestPnL[, md := max(date), by = .(year, month)]
+
+monthlyPnL <- backtestPnL[date == md]
+
+returndf <- CalculateReturns(monthlyPnL[, .(date, PnL)])
+returndf <- as.data.table(returndf)
+setnames(returndf, names(returndf), c("date", "return"))
+returndf <- returndf[!is.na(return)]
+
+backteststats <- getStatistics(returndf)
+
+```
+
+
+```{r}
+
+tbl <- backteststats[[3]]
+setnames(tbl, "value", "Risk/Reward Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+
+
+```{r}
+
+tbl <- backteststats[[2]]
+setnames(tbl, "value", "Risk Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+
+```{r}
+
+tbl <- backteststats[[1]]
+setnames(tbl, "values", "Return Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+## Index Proxy - Time Windown Report {data-background="img/BlueBackgroundWithOrange.png"}
+
+Time Window Analysis:
+
+```{r}
+
+tbl <- backteststats[[6]]
+
+nms <- tbl$variable
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = T , position = "left")
+
+```
+
+Drawdown Report:
+
+```{r}
+
+tbl <- backteststats[[5]]
+
+nms <- tbl$Number
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = T, position = "left")
+
+```
+
+
+## Index Proxy Performance Attribution - WTI Crude Oil {data-background="img/BlueBackgroundWithOrange.png"}
+
+
+```{r}
+
+attribution <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/gsci_backtest_attribution.csv"))
+attribution <- attribution[!is.na(cumret), .(date, comdty, cumret, linear)]
+
+backwardation_contango <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/backwardation_contango.csv"))
+
+backwardation_contango[, shape := ifelse(spread < 0, "Contango", "Backwardation")]
+
+
+attribution <- merge(attribution, backwardation_contango, by = c("date", "comdty"), all.x = TRUE)
+
+```
+
+```{r}
+
+cmdt <- "CL"
+  
+plotdata <- attribution[comdty == cmdt]
+  
+pic <- ggplot(plotdata, aes(x=date, y=linear)) +
+  geom_line(aes(group = comdty)) +
+  geom_point(aes(color = shape)) +  
+  scale_y_continuous(breaks = pretty_breaks(n=10)) +
+  scale_x_date(breaks = pretty_breaks(n=10)) +
+  scale_color_brewer(palette="Dark2") +
+  ggtitle(paste(cmdt, " performance attribution with curve shapes")) +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+# ggplotly(pic) %>%
+#     layout(legend = list(orientation = "h", x = 0.4, y = -0.2))
+
+pic
+
+```
+
+
+## Index Proxy Performance Attribution - Natural Gas {data-background="img/BlueBackgroundWithOrange.png"}
+
+
+```{r}
+
+cmdt <- "NG"
+  
+plotdata <- attribution[comdty == cmdt]
+  
+pic <- ggplot(plotdata, aes(x=date, y=linear)) +
+  geom_line(aes(group = comdty)) +
+  geom_point(aes(color = shape)) +  
+  scale_y_continuous(breaks = pretty_breaks(n=10)) +
+  scale_x_date(breaks = pretty_breaks(n=10)) +
+  scale_color_brewer(palette="Dark2") +
+  ggtitle(paste(cmdt, " performance attribution with curve shapes")) +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+# ggplotly(pic) %>%
+#     layout(legend = list(orientation = "h", x = 0.4, y = -0.2))
+
+pic
+
+```
+
+## Index Proxy Performance Attribution - Corn {data-background="img/BlueBackgroundWithOrange.png"}
+
+
+```{r}
+
+cmdt <- "C"
+  
+plotdata <- attribution[comdty == cmdt]
+  
+pic <- ggplot(plotdata, aes(x=date, y=linear)) +
+  geom_line(aes(group = comdty)) +
+  geom_point(aes(color = shape)) +  
+  scale_y_continuous(breaks = pretty_breaks(n=10)) +
+  scale_x_date(breaks = pretty_breaks(n=10)) +
+  scale_color_brewer(palette="Dark2") +
+  ggtitle(paste(cmdt, " performance attribution with curve shapes")) +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+# ggplotly(pic) %>%
+#     layout(legend = list(orientation = "h", x = 0.4, y = -0.2))
+
+pic
+
+```
+
+
+## Curve Shape and Annualised Return {data-background="img/BlueBackgroundWithOrange.png"}
+
+
+```{r}
+
+backwardation_contango <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/backwardation_contango.csv"))
+backwardation_contango[, shape := ifelse(spread < 0, "contango", "backwardation")]
+
+gsci_weights <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/gsciWeights.csv"))
+
+timeinshape <- backwardation_contango[, .N, by = .(comdty, shape)]
+timeinshape[, total := sum(N), by = comdty]
+timeinshape[, per := N/total]
+
+cmdtylist <- backwardation_contango[, unique(comdty)]
+counter <- 1
+part <- vector(mode = "list", length = length(cmdtylist))
+for(cmdt in cmdtylist){
+  # cmdt <- "BO"
+  returns <- backwardation_contango[comdty == cmdt & date > "1990-01-01", .(date, Returns)]
+  
+  annrets <- table.AnnualizedReturns(returns)
+  annrets <- as.data.table(annrets)
+  annrets <- annrets$Returns[1]
+
+  part[[counter]] <- data.table(
+    comdty = cmdt,
+    `Annualised Return` = annrets
+  )
+  
+  counter <- counter + 1
+}
+
+annrets <- rbindlist(part)
+
+plotdata <- merge(annrets, timeinshape[shape == "backwardation", .(comdty, per)], on = "comdty")
+plotdata <- merge(plotdata, gsci_weights[weight > 0], on = "comdty", all.x = TRUE)
+plotdata[, `GSCI commodity` := ifelse(is.na(weight), "Not GSCI commodity", "GSCI commodity")]
+
+ggplot(plotdata, aes(x = per, y = `Annualised Return`)) +
+  geom_point(aes(color = `GSCI commodity`)) +
+  geom_text(aes(label = comdty, color = `GSCI commodity`)) +
+  geom_smooth(method = "lm") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  xlab("Percentage of time spent in backwardation") +
+  ggtitle("Annualised Return vs Percentage of time spent in backwardation (After 1990-01-01)") +
+  scale_x_continuous(breaks = pretty_breaks(n=10)) +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+
+```
+
+
+
+# Backwardation Mask {data-background="img/background_mtns_1.png"}
+
+## Basic Idea {data-background="img/BlueBackgroundWithOrange.png"}
+
+- Only take long exposure in those commodities whose curves are in backwardation
+- Define the spread
+
+$$
+S_{C,K} := P_{C,K} - P_{C,K'}
+$$
+
+for each commodity $C$ as the price difference between the front contract $K$ and deferred contract, twelve months out from the front contract, $K'$.  
+
+- If $S_{C,K}$ < 0 the curve is in contango
+- If $S_{C,K}$ > 0 the curve is in backwardation
+
+
+
+## Long Backwardated - Equity Curve {data-background="img/BlueBackgroundWithOrange.png"}
+
+```{r}
+
+original <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/gsci_backtestPnL.csv"))
+original[, TimeSeries := "GSCI"]
+
+backtestPnL <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/gsci_backtestPnL_backwardation.csv"))
+backtestPnL[, TimeSeries := "Only Backwardated"]
+
+plotdata <- rbind(original[,.(date, normalised, TimeSeries)], backtestPnL[, .(date, normalised, TimeSeries)])
+
+pic <- ggplot(plotdata, aes(x=date, y=normalised)) +
+  geom_line(aes(group = TimeSeries, color = TimeSeries)) +
+  scale_color_brewer(palette="Dark2") +
+  xlab("") +
+  ylab("Performance") +
+  ggtitle("Value of $1 invested at inception") +
+  scale_x_date(breaks = pretty_breaks(n=15)) +
+  scale_y_continuous(breaks = pretty_breaks(n=10)) +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+
+# ggplotly(pic) %>%
+#     layout(legend = list(orientation = "h", x = 0.4, y = -0.2))
+
+pic
+
+```
+
+
+## Backwardation Mast - Risk and Return Statistics {data-background="img/BlueBackgroundWithOrange.png"}
+
+```{r}
+
+backtestPnL[, year := year(date)]
+backtestPnL[, month := month(date)]
+backtestPnL[, md := max(date), by = .(year, month)]
+
+monthlyPnL <- backtestPnL[date == md]
+
+returndf <- CalculateReturns(monthlyPnL[, .(date, PnL)])
+returndf <- as.data.table(returndf)
+setnames(returndf, names(returndf), c("date", "return"))
+returndf <- returndf[!is.na(return)]
+
+backteststats <- getStatistics(returndf)
+
+```
+
+```{r}
+
+tbl <- backteststats[[3]]
+setnames(tbl, "value", "Risk/Reward Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+
+
+```{r}
+
+tbl <- backteststats[[2]]
+setnames(tbl, "value", "Risk Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+
+```{r}
+
+tbl <- backteststats[[1]]
+setnames(tbl, "values", "Return Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+## Long Backwardated Commodities - Time Windown Report {data-background="img/BlueBackgroundWithOrange.png"}
+
+Time Window Analysis:
+
+```{r}
+
+tbl <- backteststats[[6]]
+
+nms <- tbl$variable
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = T , position = "left")
+
+```
+
+Drawdown Report:
+
+```{r}
+
+tbl <- backteststats[[5]]
+
+nms <- tbl$Number
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = T, position = "left")
+
+```
+
+
+
+
+
+
+# Custom Long-Only Portfolio {data-background="img/background_mtns_1.png"}
+
+
+## Basic Idea {data-background="img/BlueBackgroundWithOrange.png"}
+
+Here we combine the two ideas 
+
+- Take long exposure in backwardated commodities 
+- Explore two parts of the curve
+- Add 5 different roll schedules
+
+
+## Cusotm Long-Only Portfolio - Equity Curve {data-background="img/BlueBackgroundWithOrange.png"}
+
+```{r}
+
+original <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/gsci_backtestPnL.csv"))
+original[, TimeSeries := "GSCI"]
+
+
+backwardationPnL <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/gsci_backtestPnL_backwardation.csv"))
+backwardationPnL[, TimeSeries := "Only Backwardated"]
+
+
+
+backtestPnL <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/PnL_list.csv"))
+
+backtestPnL <- backtestPnL[, .(daily_return = sum(daily_return)/10, PnL = sum(PnL)/10), by = date]
+backtestPnL <- backtestPnL[!is.na(daily_return)]
+backtestPnL[, normalised := cumprod(daily_return + 1)]
+backtestPnL[, normalised := normalised/backtestPnL[1, normalised]]
+backtestPnL[, TimeSeries := "GSCI"]
+backtestPnL[, TimeSeries := "Custom"]
+
+plotdata <- rbind(original[,.(date, normalised, TimeSeries)], backwardationPnL[, .(date, normalised, TimeSeries)], backtestPnL[, .(date, normalised, TimeSeries)])
+
+pic <- ggplot(plotdata, aes(x=date, y=normalised)) +
+  geom_line(aes(group = TimeSeries, color = TimeSeries)) +
+  scale_color_brewer(palette="Dark2") +
+  xlab("") +
+  ylab("Performance") +
+  ggtitle("Value of $1 invested at inception") +
+  scale_x_date(breaks = pretty_breaks(n=15)) +
+  scale_y_continuous(breaks = pretty_breaks(n=10)) +
+  coord_trans(y = "log10") +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+
+# ggplotly(pic) %>%
+#     layout(legend = list(orientation = "h", x = 0.4, y = -0.2))
+
+pic
+
+```
+
+
+
+
+## Custom Long-Only Portfolio - Risk and Return Statistics {data-background="img/BlueBackgroundWithOrange.png"}
+
+```{r}
+
+backtestPnL[, year := year(date)]
+backtestPnL[, month := month(date)]
+backtestPnL[, md := max(date), by = .(year, month)]
+
+monthlyPnL <- backtestPnL[date == md]
+
+returndf <- CalculateReturns(monthlyPnL[, .(date, PnL)])
+returndf <- as.data.table(returndf)
+setnames(returndf, names(returndf), c("date", "return"))
+returndf <- returndf[!is.na(return)]
+
+backteststats <- getStatistics(returndf)
+
+```
+
+
+```{r}
+
+tbl <- backteststats[[3]]
+setnames(tbl, "value", "Risk/Reward Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+
+
+```{r}
+
+tbl <- backteststats[[2]]
+setnames(tbl, "value", "Risk Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+
+```{r}
+
+tbl <- backteststats[[1]]
+setnames(tbl, "values", "Return Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+## Custom Long-Only Portfolio - Time Windown Report {data-background="img/BlueBackgroundWithOrange.png"}
+
+Time Window Analysis:
+
+```{r}
+
+tbl <- backteststats[[6]]
+
+nms <- tbl$variable
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = T , position = "left")
+
+```
+
+Drawdown Report:
+
+```{r}
+
+tbl <- backteststats[[5]]
+
+nms <- tbl$Number
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = T, position = "left")
+
+```
+
+
+
+# Trend System on GSCI Commodities {data-background="img/background_mtns_1.png"}
+
+
+## Basic Idea {data-background="img/BlueBackgroundWithOrange.png"}
+
+- Use the <a href="https://clever-stonebraker-da1d54.netlify.com/post/designing-a-trend-strategy/" target="_blank">Polar Star Trend System</a> on a universe defined by the GSCI commodities
+- Added diversification by adding long and short positions in trending markets
+
+
+## Trend System on GSCI Commodities - Equity Curve {data-background="img/BlueBackgroundWithOrange.png"}
+
+```{r}
+
+trend_GSCI_commodities <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/trend_BCOM_commodities.csv"))
+
+trend_GSCI_commodities <- trend_GSCI_commodities[date > "1991-01-01"]
+trend_GSCI_commodities[, return := return / 100]
+
+trend_GSCI_commodities[, cumret := cumprod(return + 1)]
+trend_GSCI_commodities[, normalised := cumret/trend_GSCI_commodities[1, cumret]]
+
+
+trend_GSCI_commodities[, year := year(date)]
+trend_GSCI_commodities[, month := month(date)]
+
+trend_GSCI_commodities[, md := max(date), by = .(year, month)]
+
+trend_GSCI_commodities_monthly <- trend_GSCI_commodities[date == md, .(date, normalised)]
+
+trend_returndf <- CalculateReturns(trend_GSCI_commodities_monthly[, .(date, PnL = normalised)])
+trend_returndf <- as.data.table(trend_returndf)
+setnames(trend_returndf, names(trend_returndf), c("date", "return"))
+trend_returndf <- trend_returndf[!is.na(return)]
+
+backteststats <- getStatistics(trend_returndf)
+
+
+```
+
+
+```{r}
+
+plotdata <- merge(trend_GSCI_commodities[, .(date, Trend = normalised)], original[,.(date, `GSCI backtest` = normalised)], by = "date")
+
+plotdata <- merge(plotdata, backwardationPnL[, .(date, Backwardation = normalised)], by = "date")
+
+plotdata <- merge(plotdata, backtestPnL[, .(date, Custom = normalised)], by = "date")
+
+
+plotdata <- melt(plotdata, id.vars = "date", variable.name = "Timeseries")
+
+pic <- ggplot(plotdata, aes(x=date, y=value, group=Timeseries)) +
+  geom_line(aes(color = Timeseries)) +
+  scale_color_brewer(palette="Dark2") +
+  xlab("") +
+  ylab("Performance (log-scale)") +
+  ggtitle("Value of $1 invested at inception") +
+  scale_x_date(breaks = pretty_breaks(n=15)) +
+  scale_y_log10() +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+
+# ggplotly(pic) %>%
+#     layout(legend = list(orientation = "h", x = 0.4, y = -0.2))
+
+pic
+
+```
+
+
+
+## Trend System on GSCI Commodities - Risk and Return Statistics {data-background="img/BlueBackgroundWithOrange.png"}
+
+
+```{r}
+
+tbl <- backteststats[[3]]
+setnames(tbl, "value", "Risk/Reward Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+
+
+```{r}
+
+tbl <- backteststats[[2]]
+setnames(tbl, "value", "Risk Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+
+```{r}
+
+tbl <- backteststats[[1]]
+setnames(tbl, "values", "Return Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+## Trend System on GSCI Commodities - Time Windown Report {data-background="img/BlueBackgroundWithOrange.png"}
+
+Time Window Analysis:
+
+```{r}
+
+tbl <- backteststats[[6]]
+
+nms <- tbl$variable
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = T , position = "left")
+
+```
+
+Drawdown Report:
+
+```{r}
+
+tbl <- backteststats[[5]]
+
+nms <- tbl$Number
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = T, position = "left")
+
+```
+
+
+
+
+# Trend System on Extended Universe of Commodities {data-background="img/background_mtns_1.png"}
+
+
+## Basic Idea {data-background="img/BlueBackgroundWithOrange.png"}
+
+- Use the <a href="https://clever-stonebraker-da1d54.netlify.com/post/designing-a-trend-strategy/" target="_blank">Polar Star Trend System</a> on an extended universe of commodities
+
+- Diversification added by
+    - Long and short positions in trending markets
+    - Extended universe of commodities
+    - Look at different parts of the curves
+
+
+
+## Trend System on Extended Universe of Commodities - Equity Curve {data-background="img/BlueBackgroundWithOrange.png"}
+
+
+```{r}
+
+trendmorecommodities <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/debunking-long-only-commodity-investing/data/trend_more_commodities.csv"))
+
+trendmorecommodities <- trendmorecommodities[date > "1991-01-01"]
+trendmorecommodities[, return := return / 100]
+
+trendmorecommodities[, cumret := cumprod(return + 1)]
+trendmorecommodities[, normalised := cumret/trendmorecommodities[1, cumret]]
+
+
+trendmorecommodities[, year := year(date)]
+trendmorecommodities[, month := month(date)]
+
+trendmorecommodities[, md := max(date), by = .(year, month)]
+
+trendmorecommodities_monthly <- trendmorecommodities[date == md, .(date, normalised)]
+
+trend_returndf <- CalculateReturns(trendmorecommodities_monthly[, .(date, PnL = normalised)])
+trend_returndf <- as.data.table(trend_returndf)
+setnames(trend_returndf, names(trend_returndf), c("date", "return"))
+trend_returndf <- trend_returndf[!is.na(return)]
+
+backteststats <- getStatistics(trend_returndf)
+
+
+```
+
+
+
+```{r}
+
+plotdata <- merge(trendmorecommodities[, .(date, Trend = normalised)], original[,.(date, `GSCI backtest` = normalised)], by = "date")
+
+plotdata <- merge(plotdata, trend_GSCI_commodities[, .(date, `Trend GSCI commodities` = normalised)], by = "date")
+
+plotdata <- merge(plotdata, backwardationPnL[, .(date, Backwardation = normalised)], by = "date")
+
+plotdata <- merge(plotdata, backtestPnL[, .(date, Custom = normalised)], by = "date")
+
+
+plotdata <- melt(plotdata, id.vars = "date", variable.name = "Timeseries")
+
+pic <- ggplot(plotdata, aes(x=date, y=value, group=Timeseries)) +
+  geom_line(aes(color = Timeseries)) +
+  scale_color_brewer(palette="Dark2") +
+  xlab("") +
+  ylab("Performance (log-scale)") +
+  ggtitle("Value of $1 invested at inception") +
+  scale_x_date(breaks = pretty_breaks(n=15)) +
+  scale_y_log10() +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+
+# ggplotly(pic) %>%
+#     layout(legend = list(orientation = "h", x = 0.4, y = -0.2))
+
+pic
+
+```
+
+
+
+## Trend System on Extended Universe of Commodities - Risk and Return Statistics {data-background="img/BlueBackgroundWithOrange.png"}
+
+
+```{r}
+
+tbl <- backteststats[[3]]
+setnames(tbl, "value", "Risk/Reward Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+
+
+```{r}
+
+tbl <- backteststats[[2]]
+setnames(tbl, "value", "Risk Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+
+```{r}
+
+tbl <- backteststats[[1]]
+setnames(tbl, "values", "Return Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+## Trend System on Extended Universe of Commodities - Time Windown Report {data-background="img/BlueBackgroundWithOrange.png"}
+
+Time Window Analysis:
+
+```{r}
+
+tbl <- backteststats[[6]]
+
+nms <- tbl$variable
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = T , position = "left")
+
+```
+
+Drawdown Report:
+
+```{r}
+
+tbl <- backteststats[[5]]
+
+nms <- tbl$Number
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = T, position = "left")
+
+```
+
+
+
+# Polar Star Diversified Commodity Fund {data-background="img/background_mtns_1.png"}
+
+
+## Polar Star Diversified Construction {data-background="img/BlueBackgroundWithOrange.png"}
+
+- Allocate to the three underlying USD funds
+    - Polar Star Limited
+    - Polar Star Spectrum
+    - Polar Star Quantitative
+
+<br/>
+
+- Weights determined using
+    - Bootstrapping procedure 
+    - Determine baseline weightings
+    - Black-Litterman
+    - Add PM views
+    - Rebalance quarterly
+
+
+## Polar Star Diversified Commodity Fund - Equity Curve {data-background="img/BlueBackgroundWithOrange.png"}
+
+```{r}
+
+portfolioData <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/Polar Star Diversified Portfolio Construction/diversified_baseline_weights_performance.csv"))
+
+portfolioData[, year := year(date)]
+portfolioData[, month := month(date)]
+
+portfolioData <- portfolioData[,.(date, year, month, Diversified)]
+portfolioData[, Diversified := cumprod(Diversified + 1)]
+portfolioData[, Diversified := Diversified/portfolioData[1, Diversified]]
+  
+previousdata <- merge(trendmorecommodities[, .(date, Trend = normalised)], backtestPnL[,.(date, `GSCI backtest` = normalised)], by = "date")
+
+previousdata <- merge(previousdata, trend_GSCI_commodities[, .(date, `Trend GSCI commodities` = normalised)], by = "date")
+
+previousdata <- merge(previousdata, backwardationPnL[, .(date, Backwardation = normalised)], by = "date")
+
+previousdata <- merge(previousdata, backtestPnL[, .(date, Custom = normalised)], by = "date")
+
+previousdata[, year := year(date)]
+previousdata[, month := month(date)]
+previousdata[, md := max(date), by = .(year, month)]
+
+previousdata <- previousdata[date == md]
+previousdata[, date := NULL]
+previousdata[, md := NULL]
+
+plotdata <- merge(portfolioData[,.(date, Diversified, year, month)], previousdata, on = c("year", "month"))
+plotdata[, year := NULL]
+plotdata[, month := NULL]
+
+
+plotdata[, Trend := Trend/plotdata[1, Trend]]
+plotdata[, `GSCI backtest` := `GSCI backtest`/plotdata[1, `GSCI backtest`]]
+plotdata[, `Trend GSCI commodities` := `Trend GSCI commodities`/plotdata[1, `Trend GSCI commodities`]]
+plotdata[, Backwardation := Backwardation/plotdata[1, Backwardation]]
+plotdata[, Custom := Custom/plotdata[1, Custom]]
+
+plotdata <- melt(plotdata, id.vars = "date", variable.name = "Timeseries")
+
+```
+
+
+```{r}
+
+pic <- ggplot(plotdata, aes(x=date, y=value, group=Timeseries)) +
+  geom_line(aes(color = Timeseries)) +
+  scale_color_brewer(palette="Dark2") +
+  xlab("") +
+  ylab("Performance") +
+  ggtitle("Value of $1 invested at inception") +
+  scale_x_date(breaks = pretty_breaks(n=10)) +
+  #scale_y_log10() +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+
+# ggplotly(pic) %>%
+#     layout(legend = list(orientation = "h", x = 0.2, y = -0.2))
+
+pic
+
+```
+
+
+## Polar Star Diversified Commodity Fund - Risk and Return Statistics {data-background="img/BlueBackgroundWithOrange.png"}
+
+```{r}
+
+diversified_returndf <- CalculateReturns(portfolioData[, .(date, PnL = Diversified)])
+diversified_returndf <- as.data.table(diversified_returndf)
+setnames(diversified_returndf, names(diversified_returndf), c("date", "return"))
+diversified_returndf <- diversified_returndf[!is.na(return)]
+
+backteststats <- getStatistics(diversified_returndf)
+
+
+```
+
+
+
+```{r}
+
+tbl <- backteststats[[3]]
+setnames(tbl, "value", "Risk/Reward Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+
+
+```{r}
+
+tbl <- backteststats[[2]]
+setnames(tbl, "value", "Risk Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+
+```{r}
+
+tbl <- backteststats[[1]]
+setnames(tbl, "values", "Return Statistics")
+
+nms <- tbl$statistic
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = F, position = "float_left")
+
+```
+
+## Polar Star Diversified Commodity Fund - Time Windown Report {data-background="img/BlueBackgroundWithOrange.png"}
+
+Time Window Analysis:
+
+```{r}
+
+tbl <- backteststats[[6]]
+
+nms <- tbl$variable
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = T , position = "left")
+
+```
+
+Drawdown Report:
+
+```{r}
+
+tbl <- backteststats[[5]]
+
+nms <- tbl$Number
+
+tbl <- as.data.frame(tbl[, 2:ncol(tbl), with = FALSE])
+row.names(tbl) <- nms
+
+#rhandsontable(tbl, rowHeaderWidth = 200)
+
+kable(tbl) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = T, position = "left")
+
+```
+
+
+
+
+
+## Bootstrapping Procedure - Outline {data-background="img/BlueBackgroundWithOrange.png"}
+
+
+```{r}
+
+monthlyReturns <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/Polar Star Diversified Portfolio Construction/monthlyReturns.csv"))
+monthlyReturns[, year := year(date)]
+monthlyReturns <- monthlyReturns[!is.na(Limited)]
+
+
+allWeights <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/Polar Star Diversified Portfolio Construction/allWeights.csv"))
+setnames(allWeights, "index", "date")
+allWeights[, Limited := ifelse(is.na(Limited), Limited_, Limited)]
+allWeights[, Quant := ifelse(is.na(Quant), Quant_, Quant)]
+allWeights[, Spectrum := ifelse(is.na(Spectrum), 0, Spectrum)]
+allWeights <- allWeights[,.(date, Limited, Spectrum, Quant)]
+
+
+rollingData <- vector(mode = "list", length = nrow(monthlyReturns) - 12)
+rollingWeights <- vector(mode = "list", length = nrow(monthlyReturns) - 12)
+counter <- 1
+for(i in 12:nrow(monthlyReturns)){
+  #i=12
+  tempdata <- monthlyReturns[(i-11):i]
+  tempdata[, rollPeriod := counter]
+  tempdata[, type := "returns"]
+  
+  tempweights <- allWeights[date == tempdata[, max(date)]]
+  tempweights[, rollPeriod := counter]
+  tempweights[, type := "weights"]
+  
+  rollingData[[counter]] <- tempdata
+  rollingWeights[[counter]] <- tempweights
+  counter <- counter + 1
+}
+
+rollingData <- rbindlist(rollingData)
+rollingWeights <- rbindlist(rollingWeights)
+
+
+plotdata1 <- melt(rollingData, id.vars = c("date", "year", "rollPeriod", "type"), variable.name = "Fund", value.name = "Return")
+plotdata1 <- plotdata1[Fund != "Diversified"]
+plotdata1[, year := NULL]
+
+plotdata2 <- melt(rollingWeights, id.vars = c("date", "rollPeriod", "type"), variable.name = "Fund", value.name = "Return")
+
+plotdata <- rbind(plotdata1, plotdata2)
+
+
+```
+
+
+```{r}
+
+p <- ggplot(plotdata, aes(x=date, y=Return)) +
+  geom_point(data = subset(plotdata, type = "returns"), aes(frame = rollPeriod, color = Fund)) +
+  scale_x_date(breaks = pretty_breaks(n=10)) +
+  ggtitle("Bootstrap Samples and Weights") +
+  xlab("") +
+  ylab("") +
+  scale_color_brewer(palette="Dark2") +
+  facet_wrap(~ type, ncol = 1, scales = "free_y") +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+
+
+p <- ggplotly(p)
+
+p
+
+
+```
+
+
+## Bootstrapping Procedure - Benchmark Weights
+
+```{r}
+
+plotdata <- melt(allWeights, id.vars = "date", variable.name = "Fund", value.name = "Weight")
+
+pic <- ggplot(plotdata, aes(x=date, y=Weight)) +
+  geom_bar(stat = "identity", aes(fill = Fund)) +
+  scale_x_date(breaks = pretty_breaks(n=10)) +
+  ggtitle("Benchmark Weigths for each rolling sample") +
+  xlab("") +
+  scale_fill_brewer(palette="Dark2") +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+
+ggplotly(pic) %>%
+    layout(legend = list(orientation = "h", x = 0.2, y = -0.2))
+
+
+
+```
+
+
+## Black-Litterman Overview {data-background="img/BlueBackgroundWithOrange.png"}
+
+
+- Bayesian approach to portfolio construction (<a href = "https://www.youtube.com/watch?v=eC29p77ceo8" target="_blank">video with good insights</a>)
+- We use <a href="https://faculty.fuqua.duke.edu/~charvey/Teaching/BA453_2006/Idzorek_onBL.pdf" target="_blank">Idzorek's extension</a>
+- Add PM view and confidence to tilt allocation towards
+    - funds with higher expected returns, and
+    - funds with greater confidence
+
+
+## Black-Litterman Baseline {data-background="img/BlueBackgroundWithOrange.png"}
+
+
+```{r}
+
+tabledata <- allWeights[Spectrum != 0]
+tabledata <- melt(tabledata, id.vars = "date", variable.name = "Fund")
+tabledata <- tabledata[, .(value = round(mean(value)* 100, 1) ), by = Fund]
+tabledata[, Statistic := "Equilibrium Weight"]
+
+```
+
+
+
+
+```{r}
+
+stats <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/Polar Star Diversified Portfolio Construction/stats.csv"))
+setnames(stats, "variable", "Fund")
+
+stats[, `Positve Percentage` := `Positve Percentage` * 100]
+
+stats <- melt(stats, id.vars = "Fund", variable.name = "Statistic")
+
+stats <- rbind(stats, tabledata)
+
+stats[, value := round(value, 2)]
+
+stats <- dcast(stats, Statistic ~ Fund, values = "value")
+
+nms <- stats$Statistic
+
+stats <- as.data.frame(stats[, 2:ncol(stats), with = FALSE])
+row.names(stats) <- nms
+
+
+kable(stats) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12, full_width = T , position = "left")
+
+
+```
+
+
+## Black-Litterman Tilt {data-background="img/BlueBackgroundWithOrange.png"}
+
+```{r}
+
+weightbyconf <- as.data.table(read_csv("C:/Users/Mauritz/Box/Polar Star - Company Folder/1. Polar Star/Analysis/Analysis and Research/code/Polar Star Diversified Portfolio Construction/weightbyconf.csv"))
+
+
+pic <- ggplot(weightbyconf, aes(x=confidence, y=weight)) +
+  geom_line(aes(group = fund, color = fund)) +
+  scale_color_brewer(palette="Dark2") +
+  scale_x_continuous(breaks = pretty_breaks(n=10)) +
+  scale_y_continuous(breaks = pretty_breaks(n=10)) +
+  geom_vline(xintercept = 59.81) +
+  xlab("Confidence") +
+  ylab("Weight") +
+  ggtitle("Weight allocation as a function of Limited confidence") +
+  theme(
+    plot.background = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',colour = "gray"),
+    panel.grid.major.x = element_line(size = 0.5, linetype = 'dashed',colour = "gray"),
+    axis.title.x = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    axis.title.y = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 16),
+    plot.title = element_text(colour = rgb(5,61,96, maxColorValue = 255), size = 14, face = "bold"),
+    axis.text = element_text(size=12),
+    legend.key = element_rect(fill = rgb(242,242,242, maxColorValue = 255)),
+    legend.background=element_blank(),
+    legend.title=element_blank(),
+    text=element_text(family="Century Gothic"),
+    legend.position="bottom"
+  )
+
+
+ggplotly(pic) %>%
+    layout(legend = list(orientation = "h", x = 0.2, y = -0.2))
+
+
+```
+
+
+# Summary {data-background="img/background_mtns_1.png"}
+
+## Long-Only in a nutshell {data-background="img/BlueBackgroundWithOrange.png"}
+
+- The curve shape dominates the returns from commodities
+- Lony-only commodities only work in backwardated markets
+- Better risk adjusted returns can be achieved by
+    - adding short positions
+    - extending the investible universe
+    - adding risk management
+    
+
+## Polar Star Diversified as an alternative {data-background="img/BlueBackgroundWithOrange.png"}
+
+- Exposure to three funds with diversification accross
+    - Return streams
+    - Strategies
+    - Commodities
+- Outperforms long-only on absolute and risk adjusted basis
+- Dedicated commodities reseach and execution team
+- 93+ Years worth of commodity trading experience
+
+
